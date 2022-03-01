@@ -1,0 +1,162 @@
+---
+title: "NYPD Shooting Incident Data Report"
+author: "Liyun Zheng"
+date: "11/02/2022"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## The analysis of NYPD Shooting Incident Data
+This project is to analyze the NYPD shooting incident data, where the raw data are available from <https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD> . 
+
+## R Packages used in the analysis
+```{r library}
+# The packages using in the analysis
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(dplyr)
+library(forcats)
+```
+
+## 1.Visulaizing the Incident Location
+### Scatter plot and density cures of the shooting incident location
+```{r plot1}
+# Download the csv file from the website
+nypd_shoot<-read.csv("https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD")
+
+## Scatter plot of Latitude and Longitude variables
+## Color and shape by BORO
+scatterplot <- ggplot(data = nypd_shoot, aes(x = Longitude, y = Latitude, color = BORO, shape = BORO)) + 
+  geom_point() +
+  scale_color_manual(values = c('#999999', '#E69F00', '#E495A5', '#ABB065', '#ACA4E2')) + 
+  labs(x = "Longitude", y = "Latitude") +
+  theme(legend.position = c(0,1), legend.justification = c(0,1)) +
+  theme(legend.text = element_text(size=5)) +
+  theme(legend.title = element_text(size=7))
+
+## Marginal density plot of Longitude
+long_density <- ggplot(data = nypd_shoot, aes(x = Longitude, fill = BORO)) +
+  geom_density(alpha = 0.5) +
+  scale_fill_manual(values = c('#999999', '#E69F00', '#E495A5', '#ABB065', '#ACA4E2')) +
+  theme(legend.position = "none")
+
+## Marginal density plot of Latitude
+lat_density <- ggplot(data = nypd_shoot, aes(x = Latitude, fill = BORO)) +
+  geom_density(alpha = 0.5) +
+  scale_fill_manual(values = c('#999999', '#E69F00', '#E495A5', '#ABB065', '#ACA4E2')) +
+  theme(legend.position = "none")
+
+## Create a blank placeholder
+blankplot <- ggplot() + geom_blank(aes(1,1)) +
+  theme(plot.background  = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border     = element_blank(),
+        panel.background = element_blank(),
+        axis.title.x     = element_blank(),
+        axis.title.y     = element_blank(),
+        axis.text.x      = element_blank(),
+        axis.text.y      = element_blank(),
+        axis.ticks       = element_blank()
+        )
+
+## Arrange the 4 plots in a single page
+grid.arrange(lat_density, blankplot, scatterplot, long_density, 
+             ncol = 2, nrow = 2, widths = c(4, 2), heights = c(2, 4),
+             top = textGrob("Plots of Shooting Incident Locations", gp = gpar(frontsize=20,font=3)))
+
+```
+
+
+## 2.Summary of the number of incidents
+### Barchart of the number of incidents by sex, race, and age group
+```{r plot2}
+## Aggregate the raw categorical data by sex, race and age group, and then reorder the data based on the count by Race.
+agg <- count(nypd_shoot,VIC_SEX, VIC_RACE, VIC_AGE_GROUP)
+agg_ord <- mutate(agg, Race = reorder(VIC_RACE, -n, sum))
+
+## Plot the bar chart of the number of incidents by age group, race and sex.
+ggplot(agg_ord) +
+  geom_col(aes(x=VIC_AGE_GROUP, y=n, fill=Race)) +
+  scale_fill_manual(values = c('#999999', '#E69F00', '#E495A5', '#ABB065', '#ACA4E2', '#8DD3C7', '#FFFFB3')) +
+  facet_wrap(~ VIC_SEX) +
+  labs(x = "Age Group", y = "Number of Incidents") +
+  ggtitle("Summary of the Incidents by Sex, Race and Age Group") +
+  theme(legend.position = c(0,1), 
+        legend.justification = c(0,1),
+        legend.text = element_text(size=5),
+        legend.title = element_text(size=7),
+        axis.text.x = element_text(size=5))
+  
+```
+Based on the barchart above, black men with age 18-44 are the majority who involved in the shooting incident.
+
+
+## 3.The association between sex, race, age group and PRECINTC
+```{r dataset}
+##remove the records with missing values
+nypd_shoot_nm <- na.omit(nypd_shoot)
+```
+
+### 3.1 Simple linear model to detect the association between age group and PRECINTC
+```{r model1}
+## Simple linear regression between age group and PRECINTC
+model1 <- lm(data=nypd_shoot_nm, PRECINCT ~ VIC_AGE_GROUP)
+summary(model1)
+anova(model1)
+```
+Based on the outputs above, there is significant difference among the 6 age groups with p value < 0.05 (p-value=5.62*10^-9 from ANOVA) . Also, all the other age groups are significantly different compared to age group < 18 with all p values < 0.05 (based on the p value in the coefficient summary table.)
+
+
+
+### 3.2 simple linear model to detect the association between Sex and PRECINTC
+```{r model2}
+# Simple linear regression between sex and PRECINTC
+model2 <- lm(data=nypd_shoot_nm, PRECINCT ~ VIC_SEX)
+summary(model2)
+anova(model2)
+```
+Based on the outputs above, there is no significant difference among the 3 sex group with p value = 0.14 from ANOVA. 
+
+
+
+### 3.3 simple linear model to detect the association between race and PRECINTC
+```{r model3}
+# Simple linear regression between race and PRECINTC
+model3 <- lm(data=nypd_shoot_nm, PRECINCT ~ VIC_RACE)
+summary(model3)
+anova(model3)
+```
+Based on the outputs above, there is significant difference among the 7 race group with p value < 0.05 (p-value=2.2*10^-16 from ANOVA). However, based on the coefficient summary table, the other groups do not have significant difference compared to American indianalaskan native group.
+
+
+
+### 3.4 simple linear model to detect the association between age group, sex, race and PRECINTC
+```{r model4}
+# Multiple linear regression for race, sex, age group and PRECINTC
+model4 <- lm(data=nypd_shoot_nm, PRECINCT ~ VIC_RACE+VIC_AGE_GROUP+VIC_SEX)
+summary(model4)
+anova(model4)
+```
+Based on the outputs above, race(p-value=2.2*10^-16), age group(p-value=6.303*10^-7), and sex(p-value=0.03966) all have significant effect on the PRECINTC.
+
+
+
+## 4. Conclusions
+According to the outputs from the plots and models, race, sex and age group all have significantly effect on the shooting incident mutually in the multiple linear regression. the effect from sex is eliminated in the simple linear regression between sex and PRECINTC. Black men with age 18 to 44 are the majority who were reported most likely involving in the shooting incident.
+
+
+
+## 5. Discussion of the bias
+As we are not clear the way that the data were collected, there might be data collection bias. Also, there is no data library available.There column headers are not clear to reflect the actual data presented in the raw dataset.
+
+When reviewing the raw data, there are quite a few missing data points for the parameters used in the analysis. It could be considered as data missing at random. However, I did not do a sensitivity test using bootstrapping in the project.This is also a potential bias.
+
+
